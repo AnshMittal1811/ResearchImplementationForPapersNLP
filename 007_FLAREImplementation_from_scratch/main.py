@@ -5,6 +5,8 @@ from langchain.storage import (
     LocalFileStore,
 )
 from langchain.embeddings import CacheBackedEmbeddings, HuggingFaceEmbeddings
+from transformers import T5Tokenizer, T5ForConditionalGeneration
+import torch
 
 def create_vector_db():
     model_name = "sentence-transformers/all-mpnet-base-v2"
@@ -30,8 +32,21 @@ def create_vector_db():
 
 
 
+tokenizer = T5Tokenizer.from_pretrained("google/flan-t5-small")
+model = T5ForConditionalGeneration.from_pretrained("google/flan-t5-small")
+input_text = "What are streaming LLMs?"
 
+def get_prediction_and_scores(text):
+    input_ids = tokenizer(text, return_tensors="pt").input_ids
 
+    outputs =  model.generate(input_ids, output_scores=True, return_dict_in_generate=True)
+
+    generated_sequence = outputs.sequences[0]
+    transition_scores = torch.exp(model.compute_transition_scores(
+        outputs.sequences, outputs.scores, normalize_logits=True
+    ))
+
+    return generated_sequence, transition_scores
 
 
 
