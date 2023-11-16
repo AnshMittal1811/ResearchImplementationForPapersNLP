@@ -30,52 +30,48 @@ def create_vector_db():
     db = FAISS.from_documents(documents, cached_embedder)
     return db
 
-db= create_vector_db()
-
-tokenizer = T5Tokenizer.from_pretrained("google/flan-t5-small")
-model = T5ForConditionalGeneration.from_pretrained("google/flan-t5-small")
-input_text = "Q: What are streaming LLMs in the context of Large Language Models? Give a brief overview of the paper."
+tokenizer = T5Tokenizer.from_pretrained("google/flan-t5-base")
+model = T5ForConditionalGeneration.from_pretrained("google/flan-t5-large")
+input_text = "Q: What are streaming LLMs in the context of Large Language Models? Give a brief overview of the paper.\nA:"
+db = create_vector_db()
 
 def get_prediction_and_scores(text):
     input_ids = tokenizer(text, return_tensors="pt").input_ids
-
     outputs =  model.generate(input_ids, output_scores=True, return_dict_in_generate=True, max_length=100)
-
     generated_sequence = outputs.sequences[0]
     transition_scores = torch.exp(model.compute_transition_scores(
         outputs.sequences, outputs.scores, normalize_logits=True
     )[0])
-
     return tokenizer.decode(generated_sequence), generated_sequence, transition_scores
 
-    
-
-db = create_vector_db()
 
 while True:
     print("input_text:", input_text)
     generated_sequence, tokens, scores = get_prediction_and_scores(input_text)
     print("generated_sequence:", generated_sequence)
-    print("scores:", scores)
     # if any token is low in confidence, then do a RAG step
     if torch.min(scores) < 0.1:
         print("RAG step")
-        query = generated_sequence
+        # extract all tokens with high confidence
+        high_confidence_tokens = tokens[torch.where(scores > 0.1)]
+        query = tokenizer.decode(high_confidence_tokens)
+        print("query: ", query)
         docs = db.similarity_search(query)
         context = "\n".join([doc.page_content for doc in docs])
-        new_input_text = f"{context}\n\n {query}"
+        new_input_text = f"Given the below context:\n{context}\n\n Answer the following \n{input_text}\n"
         print("new_input_text:", new_input_text)
         generated_sequence, _, _ = get_prediction_and_scores(new_input_text)
         print("generated_sequence after RAG:", generated_sequence)
         input_text = f"{input_text} {generated_sequence}"
-        print("input_text after RAG:", input_text)
+        if "</s>" in input_text:
+            break
         
     else:
         print("NO RAG step")
         input_text = f"{input_text} {generated_sequence}"
         if "</s>" in input_text:
-            print("input_text:", input_text)
             break
 
+print("Final output:", input_text)
 
 
