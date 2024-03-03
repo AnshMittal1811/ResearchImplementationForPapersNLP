@@ -4,7 +4,7 @@ import re
 from tqdm import tqdm
 
 # some webscraping using requests and regex to get all IDs for my youtube videos
-my_url = "https://www.youtube.com/@rrwithdeku8677/videos"
+my_url = "https://www.youtube.com/@anshmittal6866/videos"
 r = requests.get(my_url)
 page = (r.text)
 pattern = r'watch\?v=([^"]+)'
